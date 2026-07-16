@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                     String              @id @default(uuid())
+  clerkUserId            String              @unique
+  email                  String              @unique
+  name                   String?
+  imageUrl               String?
+  role                   UserRole            @default(UNASSIGNED)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  credits                Int                 @default(0)
+  currentPlan            String              @default("free")
+  creditsLastAllocatedAt DateTime?
+  bio                    String?
+  title                  String?
+  company                String?
+  yearsExp               Int?
+  categories             InterviewCategory[]
+  creditRate             Int                 @default(1)
+  creditBalance          Int                 @default(0)
+  availabilities         Availability[]
+  bookingsAsInterviewee  Booking[]           @relation("IntervieweeBookings")
+  bookingsAsInterviewer  Booking[]           @relation("InterviewerBookings")
+  transactions           CreditTransaction[]
+  payouts                Payout[]
+}
+
+model Availability {
+  id            String             @id @default(uuid())
+  interviewerId String
+  startTime     DateTime
+  endTime       DateTime
+  status        AvailabilityStatus @default(AVAILABLE)
+  interviewer   User               @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+
+  @@index([interviewerId, startTime])
+}
+
+model Booking {
+  id             String              @id @default(uuid())
+  intervieweeId  String
+  interviewerId  String
+  startTime      DateTime
+  endTime        DateTime
+  status         BookingStatus       @default(SCHEDULED)
+  creditsCharged Int
+  streamCallId   String?             @unique
+  recordingUrl   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  interviewee    User                @relation("IntervieweeBookings", fields: [intervieweeId], references: [id])
+  interviewer    User                @relation("InterviewerBookings", fields: [interviewerId], references: [id])
+  transactions   CreditTransaction[]
+  feedback       Feedback?
+
+  @@index([status, createdAt])
+  @@index([interviewerId, status])
+  @@index([intervieweeId, status])
+}
+
+model Feedback {
+  id             String         @id @default(uuid())
+  bookingId      String         @unique
+  summary        String
+  technical      String
+  communication  String
+  problemSolving String
+  recommendation String
+  strengths      String[]
+  improvements   String[]
+  overallRating  FeedbackRating
+  sessionRating  Int?
+  sessionComment String?
+  createdAt      DateTime       @default(now())
+  booking        Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model CreditTransaction {
+  id        String          @id @default(uuid())
+  userId    String
+  amount    Int
+  type      TransactionType
+  bookingId String?
+  createdAt DateTime        @default(now())
+  booking   Booking?        @relation(fields: [bookingId], references: [id])
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Payout {
+  id            String       @id @default(uuid())
+  interviewerId String
+  credits       Int
+  platformFee   Float
+  netAmount     Float
+  paymentMethod String
+  paymentDetail String
+  status        PayoutStatus @default(PROCESSING)
+  adminNote     String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  processedAt   DateTime?
+  processedBy   String?
+  interviewer   User         @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([interviewerId, status])
+}
+
+enum UserRole {
+  UNASSIGNED
+  INTERVIEWEE
+  INTERVIEWER
+}
+
+enum BookingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  BOOKED
+  BLOCKED
+}
+
+enum PayoutStatus {
+  PROCESSING
+  PROCESSED
+}
+
+enum InterviewCategory {
+  FRONTEND
+  BACKEND
+  FULLSTACK
+  DSA
+  SYSTEM_DESIGN
+  BEHAVIORAL
+  DEVOPS
+  MOBILE
+}
+
+enum FeedbackRating {
+  POOR
+  AVERAGE
+  GOOD
+  EXCELLENT
+}
+
+enum TransactionType {
+  CREDIT_PURCHASE
+  BOOKING_DEDUCTION
+  BOOKING_EARNING
+  ADMIN_ADJUSTMENT
+}

@@ -1,0 +1,132 @@
+"use client";
+
+import { useEffect, useCallback, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+
+// Stream Video
+import {
+  StreamVideoClient,
+  StreamVideo,
+  StreamCall,
+} from "@stream-io/video-react-sdk";
+import "@stream-io/video-react-sdk/dist/css/styles.css";
+import "stream-chat-react/dist/css/v2/index.css";
+
+import { Loader2 } from "lucide-react";
+import CallUI from "./CallUI";
+
+export default function CallRoom({
+  callId,
+  token,
+  apiKey,
+  currentUser,
+  booking,
+  isInterviewer,
+}) {
+  const router = useRouter();
+  const [videoClient, setVideoClient] = useState(null);
+  const [call, setCall] = useState(null);
+
+  const clientRef = useRef(null);
+  const callRef = useRef(null);
+  const joinedRef = useRef(false);
+
+  useEffect(() => {
+    if (joinedRef.current) return;
+    joinedRef.current = true;
+
+    const initCall = async () => {
+      try {
+        // Test camera + microphone access
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+
+        console.log("Media stream works:", stream);
+
+        const client = new StreamVideoClient({
+          apiKey,
+          user: {
+            id: currentUser.id,
+            name: currentUser.name,
+            image: currentUser.imageUrl,
+          },
+          token,
+        });
+
+        const callInstance = client.call("default", callId);
+
+        console.log("Joining call...");
+
+        await callInstance.join({
+          create: true,
+        });
+
+        console.log("Call joined successfully");
+
+        clientRef.current = client;
+        callRef.current = callInstance;
+
+        setVideoClient(client);
+        setCall(callInstance);
+      } catch (err) {
+        console.error("FULL ERROR:", err);
+      }
+    };
+
+    initCall();
+
+    return () => {
+      if (callRef.current) {
+        callRef.current.leave().catch(() => {});
+      }
+
+      if (clientRef.current) {
+        clientRef.current.disconnectUser().catch(() => {});
+      }
+
+      clientRef.current = null;
+      callRef.current = null;
+      joinedRef.current = false;
+    };
+  }, [
+    apiKey,
+    callId,
+    currentUser.id,
+    currentUser.imageUrl,
+    currentUser.name,
+    token,
+  ]);
+
+  const handleLeave = useCallback(() => {
+    router.push(isInterviewer ? "/dashboard" : "/appointments");
+  }, [isInterviewer, router]);
+
+  if (!videoClient || !call) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0b] flex flex-col items-center justify-center gap-3">
+        <Loader2 size={28} className="text-amber-400 animate-spin" />
+        <p className="text-stone-500 text-sm font-light">
+          Connecting to call...
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <StreamVideo client={videoClient}>
+      <StreamCall call={call}>
+        <CallUI
+          callId={callId}
+          isInterviewer={isInterviewer}
+          booking={booking}
+          onLeave={handleLeave}
+          apiKey={apiKey}
+          token={token}
+          currentUser={currentUser}
+        />
+      </StreamCall>
+    </StreamVideo>
+  );
+}
